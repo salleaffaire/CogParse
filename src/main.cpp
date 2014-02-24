@@ -13,16 +13,55 @@
 int
 main(int argc, char *argv[]) {
 
+   // We'll need a file manager
    cg_file_mgr _file;
 
-   std::list<std::string> file_list;
-   _file.get_file_list(".", file_list);
+   std::list<cg_file> file_list;
+   std::list<cg_file> file_list_m3u8;
+   std::list<cg_file> file_list_ts;
 
-   for (std::list<std::string>::iterator it = file_list.begin();
-        it != file_list.end();
+   // Get all files
+   //_file.get_file_object_list("HLS", file_list);
+
+   // Get list of m3u8
+   _file.get_filtered_file_object_list("HLS", file_list_m3u8, *[](cg_file &x) -> bool {
+      bool rval = false;
+      const std::string &name = x.get_name();
+      if ((name.size() > 4) && (name.compare(name.size()-4, 4, "m3u8") == 0)) {
+         rval = true;
+      }
+      return rval;
+   });
+
+   // Get list of ts
+   _file.get_filtered_file_object_list("HLS", file_list_ts, *[](cg_file &x) -> bool {
+      bool rval = false;
+      const std::string &name = x.get_name();
+      if ((name.size() > 2) && (name.compare(name.size()-2, 2, "ts") == 0)) {
+         rval = true;
+      }
+      return rval;
+   });
+
+   // M3U8
+   std::cout << "Playlists - M3U8" << std::endl;
+   std::cout << "-------------------------------------" << std::endl;
+   for (std::list<cg_file>::iterator it = file_list_m3u8.begin();
+        it != file_list_m3u8.end();
         ++it) {
       std::cout << *it << std::endl;
    }
+   std::cout << std::endl;
+
+   // TS
+   std::cout << "TS Segments" << std::endl;
+   std::cout << "-------------------------------------" << std::endl;
+   for (std::list<cg_file>::iterator it = file_list_ts.begin();
+        it != file_list_ts.end();
+        ++it) {
+      std::cout << *it << std::endl;
+   }
+   std::cout << std::endl;
 
    return 0;
 }
