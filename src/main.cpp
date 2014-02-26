@@ -8,11 +8,15 @@
 #include <iostream>
 
 #include "cg_basic_element.hpp"
-#include "cg_file.hpp"
+#include "cg_textfile_parser.hpp"
+// #include "cg_file.hpp"
 
 int
 main(int argc, char *argv[]) {
 
+   // File manager test
+   // ------------------------------------------------
+#if 0
    // We'll need a file manager
    cg_file_mgr _file;
 
@@ -62,6 +66,14 @@ main(int argc, char *argv[]) {
       std::cout << *it << std::endl;
    }
    std::cout << std::endl;
+#endif
+
+
+   // Text file parser test
+#if 1
+
+#endif
+
 
    return 0;
 }
