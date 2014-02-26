@@ -24,21 +24,26 @@ public:
 
    void reset() {
       if (mInitialized) {
-
+         mInitialized = false;
+         mInFileStream.close();
       }
    }
-   void open() {
-      if (mFilename != "") {
-         reset();
 
-         mInFileStream.open(mFilename.c_str());
+   bool open() {
+      reset();
+      mInFileStream.open(mFilename.c_str());
+
+      if (mInFileStream.good()) {
+         mInitialized = true;
       }
       else {
-         std::cout << "Filename is not initialized ... " << std::endl;
+         mInitialized = true;
       }
+
+      return mInitialized;
    }
 
-   bool next_line(std::string line) {
+   bool next_line(std::string &line) {
       bool rval = true;
       if (mInitialized) {
          if (!(std::getline(mInFileStream, line))) {
@@ -56,7 +61,6 @@ private:
 
    std::string   mFilename;
    std::ifstream mInFileStream;
-
 };
 
 

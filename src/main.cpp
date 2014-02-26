@@ -7,8 +7,10 @@
 
 #include <iostream>
 
-#include "cg_basic_element.hpp"
 #include "cg_textfile_parser.hpp"
+#include "cg_tag_parser.hpp"
+
+#include "cg_basic_element.hpp"
 // #include "cg_file.hpp"
 
 int
@@ -71,9 +73,17 @@ main(int argc, char *argv[]) {
 
    // Text file parser test
 #if 1
+   cg_text_file       _textFile("BigBuckBunny_HLSProtected.m3u8");
+   cg_tag_line_parser _tagLineParser;
 
+   if (_textFile.open()) {
+      std::string s;
+      while (_textFile.next_line(s)) {
+         _tagLineParser.parse(s);
+         std::cout << s << std::endl;
+      }
+   }
 #endif
-
 
    return 0;
 }
