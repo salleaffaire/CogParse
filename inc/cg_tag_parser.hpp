@@ -8,9 +8,12 @@
 #ifndef CG_TAG_PARSER_HPP_
 #define CG_TAG_PARSER_HPP_
 
+#include <iostream>
 #include <string>
 #include <map>
 #include <list>
+
+#include "cg_char_tests.hpp"
 
 // Default is for HLS
 // ----------------------------------------------
@@ -27,6 +30,8 @@ public:
    cg_tag_line() : mState(true) {}
    ~cg_tag_line() {}
 
+   bool isOK() { return mState; }
+
 private:
    std::string mTagName;
    std::map<std::string, std::string> mAttributes;
@@ -35,14 +40,28 @@ private:
    bool mState;
 
    friend class cg_tag_line_parser;
+   friend std::ostream &operator<<(std::ostream &os, cg_tag_line &x);
 };
+
+std::ostream &operator<<(std::ostream &os, cg_tag_line &x) {
+   os << "TAG : " << x.mTagName << std::endl;
+   for (std::map<std::string, std::string>::iterator it = x.mAttributes.begin();
+        it != x.mAttributes.end();
+        ++it) {
+      os << "  " << it->first << " = " << it->second << std::endl;
+   }
+   return os;
+}
 
 class cg_tag_line_parser {
 public:
    enum CG_TAG_LINE_PARSE_STATE {
-      CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME        = 1,
-      CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY   = 2,
-      CG_TAG_LINE_PARSE_STATE_DECODING_ATTRUBUTE_VALUE = 3,
+      CG_TAG_LINE_PARSE_STATE_INIT                     = 1,
+      CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME        = 2,
+      CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY   = 3,
+      CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE = 4,
+      CG_TAG_LINE_PARSE_STATE_DONE                     = 5,
+      CG_TAG_LINE_PARSE_STATE_ERROR                    = 6
    };
 
    cg_tag_line_parser() : mTagStart(CG_DEFAULT_TAG_START),
@@ -53,22 +72,93 @@ public:
 
    virtual ~cg_tag_line_parser() {}
 
-   cg_tag_line parse(std::string &s) {
+   cg_tag_line lex(std::string &s) {
       cg_tag_line rval;
 
-      std::string::iterator it = s.begin();
+      std::string currentAttributeKey;
+      std::string currentAttributeValue;
 
-      if (*it != mTagStart) {
+      mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_INIT;
+
+      for (std::string::iterator it = s.begin();it != s.end();++it) {
+
+         if (*it != ' ') {
+            switch (mState) {
+            case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_INIT:
+               // Found the start tag
+               if (*it == mTagStart) {
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME;
+               }
+               // Error -
+               else {
+                  mErrorMessage = "Tag Line doesn't start with tag start code : " + mTagStart;
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR;
+               }
+               break;
+            case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME:
+               if (cg_char_is_alphanum(*it) || (*it == '-')) {
+                  rval.mTagName += *it;
+               }
+               else if (*it == mTagEnd) {
+                  currentAttributeKey.clear();
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY;
+               }
+               else {
+                  mErrorMessage += "Invalid caracter : ";
+                  mErrorMessage += *it;
+                  mErrorMessage += " in Tag Name";
+
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR;
+               }
+               break;
+            case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY:
+               if (cg_char_is_alphanum(*it) || (*it == '-')) {
+                  currentAttributeKey += *it;
+               }
+               else if (*it == mKeyValueSeperator) {
+                  currentAttributeValue.clear();
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE;
+               }
+               else {
+                  mErrorMessage += "Invalid caracter : ";
+                  mErrorMessage += *it;
+                  mErrorMessage += " in Key Name";
+
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR;
+               }
+               break;
+            case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE:
+               if (cg_char_is_alphanum(*it) || (*it == '-') || (*it == '=') || (*it == '+')) {
+                  currentAttributeValue += *it;
+               }
+               else if (*it == mAttributeDelimiter) {
+                  rval.mAttributes[currentAttributeKey] = currentAttributeValue;
+                  currentAttributeKey.clear();
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY;
+               }
+               else {
+                  mErrorMessage += "Invalid caracter : ";
+                  mErrorMessage += *it;
+                  mErrorMessage += " in Value Name";
+
+                  mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR;
+               }
+               break;
+            case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DONE:
+            case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR:
+               break;
+            }
+         }
+         if (mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR)
+            break;
+      }
+
+      if (mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE) {
+         rval.mAttributes[currentAttributeKey] = currentAttributeValue;
+      }
+      else if (mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR) {
          rval.mState = false;
       }
-      else {
-         // Decode the startcode
-         for (;it != s.end();++it) {
-
-            std::cout << *it;
-         }
-      }
-      std::cout << std::endl;
 
       return rval;
    }
@@ -78,6 +168,8 @@ private:
    char mTagEnd;
    char mAttributeDelimiter;
    char mKeyValueSeperator;
+
+   std::string mErrorMessage;
 
    cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE mState;
 };

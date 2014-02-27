@@ -10,7 +10,7 @@
 #include "cg_textfile_parser.hpp"
 #include "cg_tag_parser.hpp"
 
-#include "cg_basic_element.hpp"
+// #include "cg_basic_element.hpp"
 // #include "cg_file.hpp"
 
 int
@@ -79,8 +79,15 @@ main(int argc, char *argv[]) {
    if (_textFile.open()) {
       std::string s;
       while (_textFile.next_line(s)) {
-         _tagLineParser.parse(s);
-         std::cout << s << std::endl;
+
+         std::cout << "****************************************************" << std::endl;
+         std::cout << s << std::endl << std::endl;
+
+         cg_tag_line tag_line = _tagLineParser.lex(s);
+
+         if (tag_line.isOK()) {
+            std::cout << tag_line;
+         }
       }
    }
 #endif

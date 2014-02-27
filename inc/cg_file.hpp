@@ -12,7 +12,6 @@
 #include <list>
 #include <iostream>
 
-
 class cg_file {
 public:
    enum TYPE {
