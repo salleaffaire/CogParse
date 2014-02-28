@@ -73,6 +73,7 @@ main(int argc, char *argv[]) {
 
    // Text file parser test
 #if 1
+   //cg_text_file       _textFile("stream4.m3u8");
    cg_text_file       _textFile("BigBuckBunny_HLSProtected.m3u8");
    cg_tag_line_parser _tagLineParser;
 

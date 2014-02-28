@@ -115,9 +115,20 @@ public:
                if (cg_char_is_alphanum(*it) || (*it == '-')) {
                   currentAttributeKey += *it;
                }
+               else if (*it == '"') {
+                  ++it;
+                  decode_string_literal(it, currentAttributeKey);
+               }
+               // Found a key-value separator -> start decoding the value
                else if (*it == mKeyValueSeperator) {
                   currentAttributeValue.clear();
                   mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE;
+               }
+               // Found an attribute delimiter - then I guess the key is a tag value !!!
+               // I hope we're done here
+               else if (*it == mAttributeDelimiter) {
+                  //rval.mAttributes[currentAttributeKey] = "";
+                  //currentAttributeKey.clear();
                }
                else {
                   mErrorMessage += "Invalid caracter : ";
@@ -130,6 +141,10 @@ public:
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE:
                if (cg_char_is_alphanum(*it) || (*it == '-') || (*it == '=') || (*it == '+')) {
                   currentAttributeValue += *it;
+               }
+               else if (*it == '"') {
+                  ++it;
+                  decode_string_literal(it, currentAttributeValue);
                }
                else if (*it == mAttributeDelimiter) {
                   rval.mAttributes[currentAttributeKey] = currentAttributeValue;
@@ -153,7 +168,8 @@ public:
             break;
       }
 
-      if (mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE) {
+      if (mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY ||
+          mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE) {
          rval.mAttributes[currentAttributeKey] = currentAttributeValue;
       }
       else if (mState == cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_ERROR) {
@@ -172,6 +188,27 @@ private:
    std::string mErrorMessage;
 
    cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE mState;
+
+   // it points to "string"
+   //               ^
+   //               |
+   //               |
+   //         it ----
+   bool decode_string_literal(std::string::iterator &it, std::string &s) {
+      bool rval = true;
+
+      s += "\"";
+
+      while (cg_char_is_stringliteralchar(*it)) {
+         s += *it;
+         ++it;
+      }
+
+      s += "\"";
+
+      return rval;
+
+   }
 };
 
 
