@@ -6,6 +6,7 @@
  */
 
 #include <iostream>
+#include <list>
 
 #include "cg_textfile_parser.hpp"
 #include "cg_tag_parser.hpp"
@@ -91,7 +92,9 @@ main(int argc, char *argv[]) {
          }
       }
    }
+
 #endif
+
 
    return 0;
 }

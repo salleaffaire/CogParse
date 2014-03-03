@@ -13,7 +13,7 @@
 #include <map>
 #include <list>
 
-#include "cg_char_tests.hpp"
+#include "cg_lexer_base.hpp"
 
 // Default is for HLS
 // ----------------------------------------------
@@ -53,7 +53,7 @@ std::ostream &operator<<(std::ostream &os, cg_tag_line &x) {
    return os;
 }
 
-class cg_tag_line_parser {
+class cg_tag_line_parser : public cg_lexer_base {
 public:
    enum CG_TAG_LINE_PARSE_STATE {
       CG_TAG_LINE_PARSE_STATE_INIT                     = 1,
@@ -112,11 +112,10 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY:
-               if (cg_char_is_alphanum(*it) || (*it == '-')) {
+               if (cg_test<unsigned char>(*it, mTestAlphaNum) || (*it == '-')) {
                   currentAttributeKey += *it;
                }
                else if (*it == '"') {
-                  ++it;
                   decode_string_literal(it, currentAttributeKey);
                }
                // Found a key-value separator -> start decoding the value
@@ -143,7 +142,6 @@ public:
                   currentAttributeValue += *it;
                }
                else if (*it == '"') {
-                  ++it;
                   decode_string_literal(it, currentAttributeValue);
                }
                else if (*it == mAttributeDelimiter) {
@@ -189,26 +187,7 @@ private:
 
    cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE mState;
 
-   // it points to "string"
-   //               ^
-   //               |
-   //               |
-   //         it ----
-   bool decode_string_literal(std::string::iterator &it, std::string &s) {
-      bool rval = true;
 
-      s += "\"";
-
-      while (cg_char_is_stringliteralchar(*it)) {
-         s += *it;
-         ++it;
-      }
-
-      s += "\"";
-
-      return rval;
-
-   }
 };
 
 

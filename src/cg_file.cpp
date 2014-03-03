@@ -16,12 +16,15 @@
 #include "cg_file.hpp"
 
 
-cg_file::cg_file() {}
+cg_file::cg_file() :
+   mType(cg_file::FILE),
+   mName(""),
+   mPath("") {}
 
 cg_file::cg_file(cg_file::TYPE t, std::string n, std::string p) :
-      mType(t),
-      mName(n),
-      mPath(p) {}
+   mType(t),
+   mName(n),
+   mPath(p) {}
 
 cg_file::~cg_file() {}
 
