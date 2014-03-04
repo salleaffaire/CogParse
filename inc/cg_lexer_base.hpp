@@ -9,61 +9,159 @@
 #define CG_LEXER_BASE_HPP_
 
 #include <string>
-#include <list>
 #include <map>
+#include <list>
 #include <regex>
 
 #include "cg_char_tests.hpp"
 
+template <class T>
+class cg_test_base {
+public:
+   cg_test_base() {}
+   virtual ~cg_test_base() {}
+
+   virtual bool test(T x) = 0;
+};
+
+template <class T>
+class cg_test_range : public cg_test_base<T> {
+public:
+   cg_test_range(T l, T u) : mLow(l), mUp(u) {}
+   virtual ~cg_test_range() {}
+
+   bool test(T c) { return ((c >= mLow) && (c <= mUp)) ? true : false; }
+
+private:
+   T mLow;
+   T mUp;
+};
+
+template <class T>
+class cg_test_equal : public cg_test_base<T> {
+public:
+   cg_test_equal(T c) : mC(c) {}
+   virtual ~cg_test_equal() {}
+
+   bool test(T c) { return c == mC; }
+
+private:
+   T mC;
+};
+
+template <class T>
+class cg_test_notequal : public cg_test_base<T> {
+public:
+   cg_test_notequal(T c) : mC(c) {}
+   virtual ~cg_test_notequal() {}
+
+   bool test(T c) { return c != mC; }
+
+private:
+   T mC;
+};
+
+class cg_lexing_rule {
+public:
+   typedef bool (*lexing_rule_fn)(bool, bool);
+
+   static lexing_rule_fn        mOr;
+   static lexing_rule_fn        mAnd;
+
+   cg_lexing_rule() {}
+   ~cg_lexing_rule() {}
+
+   lexing_rule_fn                            mFn;
+   bool                                      mInit;
+   std::list<cg_test_base<unsigned char> *>  mTestList;
+};
+
+
+cg_lexing_rule::lexing_rule_fn cg_lexing_rule::mOr = *[](bool in, bool r) -> bool {
+   return in || r;
+};
+
+cg_lexing_rule::lexing_rule_fn cg_lexing_rule::mAnd = *[](bool in, bool r) -> bool {
+   return in && r;
+};
+
+
+template <class T>
+bool cg_test(T c, std::list<cg_test_base<T> *> &t_l, bool init, bool (*f)(bool, bool)) {
+   bool rval = init;
+
+   for (typename std::list<cg_test_base<T> *>::iterator it = t_l.begin();
+        (it != t_l.end());
+        ++it) {
+      rval = f((*it)->test(c), rval);
+   }
+
+   return rval;
+}
+
+
 class cg_lexer_base {
 public:
    cg_lexer_base() :
-      // Define ranges
-      mUppercaseRange(0x41, 0x5A),
-      mLowercaseRange(0x61, 0x7A),
-      mDecimalRange(0x30, 0x39),
-      mOctalRange(0x30, 0x37),
-      mHexupRange(0x41, 0x46),
-      mHexlowRange(0x61, 0x66) {
+      // Pre-define ranges
+      // -------------------------------------------------------------------
+      mIsInPrintableRange(0x21, 0x7E),
+      mIsInUppercaseRange(0x41, 0x5A),   // Upper case letters [A-Z]
+      mIsInLowercaseRange(0x61, 0x7A),   // Lower case letters [a-z]
+      mIsInDecimalRange(0x30, 0x39),     // Decimal digits     [0-9]
+      mIsInOctalRange(0x30, 0x37),       // Octal digits       [0-7]
+      mIsInHexupRange(0x41, 0x46),       // Upper case alpha hex digits [A-F]
+      mIsInHexlowRange(0x61, 0x66),       // Lower case alpha hex digits [a-f]
+      mIsNotDoubleQuote('"')
+   {
 
-      // -----------------------------------------
-      mTestDecimal.push_back(&mDecimalRange);
+      // -------------------------------------------------------------------
+      mTestDecimal.push_back(&mIsInDecimalRange);  //    in decimal range
 
-      // -----------------------------------------
-      mTestOctal.push_back(&mOctalRange);
+      // -------------------------------------------------------------------
+      mTestOctal.push_back(&mIsInOctalRange);      //    in octal range
 
-      // -----------------------------------------
-      mTestHex.push_back(&mDecimalRange);
-      mTestHex.push_back(&mHexupRange);
-      mTestHex.push_back(&mHexlowRange);
+      // -------------------------------------------------------------------
+      mTestHex.push_back(&mIsInDecimalRange);      //    in decimal range
+      mTestHex.push_back(&mIsInHexupRange);        // or in hex up range
+      mTestHex.push_back(&mIsInHexlowRange);       // or in hex low range
 
-      // -----------------------------------------
-      mTestLetter.push_back(&mUppercaseRange);
-      mTestLetter.push_back(&mLowercaseRange);
+      // -------------------------------------------------------------------
+      mTestLetter.push_back(&mIsInUppercaseRange); //    in upper case range
+      mTestLetter.push_back(&mIsInLowercaseRange); // or in lower case range
 
-      // -----------------------------------------
-      mTestAlphaNum.push_back(&mDecimalRange);
-      mTestAlphaNum.push_back(&mUppercaseRange);
-      mTestAlphaNum.push_back(&mLowercaseRange);
+      // -------------------------------------------------------------------
+      mTestAlphaNum.push_back(&mIsInDecimalRange);   //    in decimal range
+      mTestAlphaNum.push_back(&mIsInUppercaseRange); // or in upper case range
+      mTestAlphaNum.push_back(&mIsInLowercaseRange); // or in lower case range
+
+      // -------------------------------------------------------------------
+      mTestStringLiteral.push_back(&mIsInPrintableRange); //     in decimal range
+      mTestStringLiteral.push_back(&mIsNotDoubleQuote);   // and not equal to "
    }
    virtual ~cg_lexer_base() {}
 
+   void push_rule(std::string rule_name, std::list<cg_test_base<unsigned char> *> rule) {
+      mUserDefinedTestMap[rule_name] = rule;
+   }
 
 protected:
 
-   bool decode_string_literal(std::string::iterator &it, std::string &s) {
+   // --------------------------------------------------------
+   bool decode_string_literal(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
       bool rval = true;
 
       if (*it == '"') {
-         // Use the opening double-quote
+         // Swallow the opening double-quote, update the iterator
          s += *it++;
 
-         while (cg_char_is_stringliteralchar(*it)) {
+         while (cg_test<unsigned char>(*it, mTestStringLiteral, true, *[](bool in, bool r) -> bool { return in && r; })) {
+         // while (cg_char_is_stringliteralchar(*it)) {
             s += *it++;
          }
 
-         // Use the closing double-quote
-         s += *it++;
+         // Swallow the closing double-quote, do not update the iterator
+         s += *it;
       }
       else {
          rval = false;
@@ -76,8 +174,8 @@ protected:
    // 23            -> Decimal
    // 0X17 or 0x17  -> Hex
    // 027           -> Octal
-
-   bool decode_number(std::string::iterator &it, std::string &s) {
+   // --------------------------------------------------------
+   bool decode_number(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
       bool rval = true;
 
       // Octal or Hex
@@ -88,8 +186,7 @@ protected:
             s += *it++;
 
             // Decode HEX
-            decode_hex(it, s);
-
+            decode_hex(it, end,  s);
          }
          // We're Octal
          else {
@@ -97,13 +194,12 @@ protected:
             s += *it++;
 
             // Decode OCT
-            decode_oct(it, s);
+            decode_oct(it, end, s);
          }
-
       }
       else {
          // Decode DIG
-         decode_dec(it, s);
+         decode_dec(it, end, s);
       }
 
       return rval;
@@ -111,12 +207,15 @@ protected:
 
    // Default deciding functions - "decode while test is true"
    bool decode_while(std::string::iterator &it,
+                     const std::string::iterator &end,
                      std::string &s,
-                     std::list<cg_test_base<unsigned char> *> &test) {
+                     std::list<cg_test_base<unsigned char> *> &test,
+                     bool init,
+                     bool (*f)(bool, bool)
+                     ) {
       bool rval = true;
 
-      //while (cg_char_is_dec(*it)) {
-      while (cg_test<unsigned char>(*it, test))  {
+      while (cg_test<unsigned char>(*it, test, init, f) && it != end)  {
          s += *it++;
       }
 
@@ -124,19 +223,32 @@ protected:
    }
 
    // Useful ones using defauls tests
-   bool decode_dec(std::string::iterator &it, std::string &s) {
-      return decode_while(it, s, mTestDecimal);
+   bool decode_dec(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
+      return decode_while(it, end, s, mTestDecimal, false, *[](bool in, bool r) -> bool { return in || r; });
    }
 
-   bool decode_oct(std::string::iterator &it, std::string &s) {
-      return decode_while(it, s, mTestOctal);
+   bool decode_oct(std::string::iterator &it, const std::string::iterator &end,  std::string &s) {
+      return decode_while(it, end, s, mTestOctal, false, *[](bool in, bool r) -> bool { return in || r; });
    }
 
-   bool decode_hex(std::string::iterator &it, std::string &s) {
-      return decode_while(it, s, mTestHex);
+   bool decode_hex(std::string::iterator &it, const std::string::iterator &end,  std::string &s) {
+      return decode_while(it, end, s, mTestHex, false, *[](bool in, bool r) -> bool { return in || r; });
    }
 
-   // Default tests -
+   // Default useful caracter ranges
+   // ----------------------------------------------------------------------------
+   cg_test_range<unsigned char>             mIsInPrintableRange;
+   cg_test_range<unsigned char>             mIsInUppercaseRange;
+   cg_test_range<unsigned char>             mIsInLowercaseRange;
+   cg_test_range<unsigned char>             mIsInDecimalRange;
+   cg_test_range<unsigned char>             mIsInOctalRange;
+   cg_test_range<unsigned char>             mIsInHexupRange;
+   cg_test_range<unsigned char>             mIsInHexlowRange;
+
+   cg_test_notequal<unsigned char>          mIsNotDoubleQuote;
+
+   // Default test lists
+   // ----------------------------------------------------------------------------
    std::list<cg_test_base<unsigned char> *> mTestLetter;
    std::list<cg_test_base<unsigned char> *> mTestDecimal;
 
@@ -144,16 +256,20 @@ protected:
    std::list<cg_test_base<unsigned char> *> mTestHex;
    std::list<cg_test_base<unsigned char> *> mTestAlphaNum;
 
-   // Default useful range tests
-   cg_test_range<unsigned char>             mUppercaseRange;
-   cg_test_range<unsigned char>             mLowercaseRange;
-   cg_test_range<unsigned char>             mDecimalRange;
-   cg_test_range<unsigned char>             mOctalRange;
-   cg_test_range<unsigned char>             mHexupRange;
-   cg_test_range<unsigned char>             mHexlowRange;
+   std::list<cg_test_base<unsigned char> *> mTestStringLiteral;
 
-   std::map
+   // Default rules
+   // ----------------------------------------------------------------------------
+   cg_lexing_rule mIsLetterRule;
+   cg_lexing_rule mIsDecimalRule;
 
+   cg_lexing_rule mIsOctalRule;
+   cg_lexing_rule mIsHexRule;
+   cg_lexing_rule mIsAlphaNumRule;
+
+   cg_lexing_rule mIsStringLiteralRule;
+
+   std::map<std::string, std::list<cg_test_base<unsigned char> *>> mUserDefinedTestMap;
 };
 
 

@@ -8,41 +8,6 @@
 #ifndef CG_CHAR_TESTS_HPP_
 #define CG_CHAR_TESTS_HPP_
 
-template <class T>
-class cg_test_base {
-public:
-   cg_test_base() {}
-   virtual ~cg_test_base() {}
-
-   virtual bool test(T x) = 0;
-};
-
-template <class T>
-class cg_test_range : public cg_test_base<T> {
-public:
-   cg_test_range(T l, T u) : mLow(l), mUp(u) {}
-   virtual ~cg_test_range() {}
-
-   bool test(T c) { return ((c >= mLow) && (c <= mUp)) ? true : false; }
-
-private:
-   T mLow;
-   T mUp;
-};
-
-template <class T>
-bool cg_test(T c, std::list<cg_test_base<T> *> &t_l) {
-   bool rval = false;
-
-   for (typename std::list<cg_test_base<T> *>::iterator it = t_l.begin();
-        ((it != t_l.end()) && (rval == false));
-        ++it) {
-      rval = (*it)->test(c);
-   }
-
-   return rval;
-}
-
 // Templated Range (not used, but still cool - will work on it later)
 // -------------------------------------------------------------------
 

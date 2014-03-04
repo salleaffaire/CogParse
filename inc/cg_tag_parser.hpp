@@ -80,7 +80,9 @@ public:
 
       mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_INIT;
 
-      for (std::string::iterator it = s.begin();it != s.end();++it) {
+      const std::string::iterator end = s.end();
+
+      for (std::string::iterator it = s.begin();it != end;++it) {
 
          if (*it != ' ') {
             switch (mState) {
@@ -96,7 +98,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME:
-               if (cg_char_is_alphanum(*it) || (*it == '-')) {
+               if (cg_test<unsigned char>(*it, mTestAlphaNum, false, *[](bool in, bool r) -> bool { return in || r; }) || (*it == '-')) {
                   rval.mTagName += *it;
                }
                else if (*it == mTagEnd) {
@@ -112,11 +114,11 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY:
-               if (cg_test<unsigned char>(*it, mTestAlphaNum) || (*it == '-')) {
+               if (cg_test<unsigned char>(*it, mTestAlphaNum, false, *[](bool in, bool r) -> bool { return in || r; }) || (*it == '-')) {
                   currentAttributeKey += *it;
                }
                else if (*it == '"') {
-                  decode_string_literal(it, currentAttributeKey);
+                  decode_string_literal(it, end, currentAttributeKey);
                }
                // Found a key-value separator -> start decoding the value
                else if (*it == mKeyValueSeperator) {
@@ -138,11 +140,12 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE:
-               if (cg_char_is_alphanum(*it) || (*it == '-') || (*it == '=') || (*it == '+')) {
+               if (cg_test<unsigned char>(*it, mTestAlphaNum,  false, *[](bool in, bool r) -> bool { return in || r; })
+                     || (*it == '-') || (*it == '=') || (*it == '+')) {
                   currentAttributeValue += *it;
                }
                else if (*it == '"') {
-                  decode_string_literal(it, currentAttributeValue);
+                  decode_string_literal(it, end, currentAttributeValue);
                }
                else if (*it == mAttributeDelimiter) {
                   rval.mAttributes[currentAttributeKey] = currentAttributeValue;
