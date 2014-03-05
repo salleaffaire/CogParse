@@ -98,7 +98,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME:
-               if (cg_test<unsigned char>(*it, mTestAlphaNum, false, *[](bool in, bool r) -> bool { return in || r; }) || (*it == '-')) {
+               if (cg_test(*it, mIsAlphaNumRule) || (*it == '-')) {
                   rval.mTagName += *it;
                }
                else if (*it == mTagEnd) {
@@ -114,7 +114,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY:
-               if (cg_test<unsigned char>(*it, mTestAlphaNum, false, *[](bool in, bool r) -> bool { return in || r; }) || (*it == '-')) {
+               if (cg_test(*it, mIsAlphaNumRule) || (*it == '-')) {
                   currentAttributeKey += *it;
                }
                else if (*it == '"') {
@@ -140,7 +140,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE:
-               if (cg_test<unsigned char>(*it, mTestAlphaNum,  false, *[](bool in, bool r) -> bool { return in || r; })
+               if (cg_test(*it, mIsAlphaNumRule)
                      || (*it == '-') || (*it == '=') || (*it == '+')) {
                   currentAttributeValue += *it;
                }

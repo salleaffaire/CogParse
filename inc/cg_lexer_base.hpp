@@ -15,6 +15,10 @@
 
 #include "cg_char_tests.hpp"
 
+// -------------------------------------------------------------------
+// Test classes
+// -------------------------------------------------------------------
+
 template <class T>
 class cg_test_base {
 public:
@@ -61,6 +65,10 @@ private:
    T mC;
 };
 
+// -------------------------------------------------------------------
+// Lexing rule class
+// -------------------------------------------------------------------
+
 class cg_lexing_rule {
 public:
    typedef bool (*lexing_rule_fn)(bool, bool);
@@ -85,6 +93,9 @@ cg_lexing_rule::lexing_rule_fn cg_lexing_rule::mAnd = *[](bool in, bool r) -> bo
    return in && r;
 };
 
+// -------------------------------------------------------------------
+
+
 
 template <class T>
 bool cg_test(T c, std::list<cg_test_base<T> *> &t_l, bool init, bool (*f)(bool, bool)) {
@@ -97,6 +108,10 @@ bool cg_test(T c, std::list<cg_test_base<T> *> &t_l, bool init, bool (*f)(bool, 
    }
 
    return rval;
+}
+
+bool cg_test(unsigned char c, cg_lexing_rule &lr) {
+   return cg_test<unsigned char>(c, lr.mTestList, lr.mInit, lr.mFn);
 }
 
 
@@ -138,6 +153,34 @@ public:
       // -------------------------------------------------------------------
       mTestStringLiteral.push_back(&mIsInPrintableRange); //     in decimal range
       mTestStringLiteral.push_back(&mIsNotDoubleQuote);   // and not equal to "
+
+      // Default rules
+      // -------------------------------------------------------------------
+      // -------------------------------------------------------------------
+      mIsDecimalRule.mFn       = cg_lexing_rule::mOr;
+      mIsDecimalRule.mInit     = false;
+      mIsDecimalRule.mTestList = mTestDecimal;
+
+      mIsOctalRule.mFn         = cg_lexing_rule::mOr;
+      mIsOctalRule.mInit       = false;
+      mIsOctalRule.mTestList   = mTestOctal;
+
+      mIsHexRule.mFn           = cg_lexing_rule::mOr;
+      mIsHexRule.mInit         = false;
+      mIsHexRule.mTestList     = mTestHex;
+
+      mIsLetterRule.mFn        = cg_lexing_rule::mOr;
+      mIsLetterRule.mInit      = false;
+      mIsLetterRule.mTestList  = mTestLetter;
+
+      mIsAlphaNumRule.mFn        = cg_lexing_rule::mOr;
+      mIsAlphaNumRule.mInit      = false;
+      mIsAlphaNumRule.mTestList  = mTestAlphaNum;
+
+      mIsStringLiteralRule.mFn        = cg_lexing_rule::mAnd;
+      mIsStringLiteralRule.mInit      = true;
+      mIsStringLiteralRule.mTestList  = mTestStringLiteral;
+
    }
    virtual ~cg_lexer_base() {}
 
@@ -155,8 +198,7 @@ protected:
          // Swallow the opening double-quote, update the iterator
          s += *it++;
 
-         while (cg_test<unsigned char>(*it, mTestStringLiteral, true, *[](bool in, bool r) -> bool { return in && r; })) {
-         // while (cg_char_is_stringliteralchar(*it)) {
+         while (cg_test(*it, mIsStringLiteralRule)) {
             s += *it++;
          }
 
@@ -209,13 +251,11 @@ protected:
    bool decode_while(std::string::iterator &it,
                      const std::string::iterator &end,
                      std::string &s,
-                     std::list<cg_test_base<unsigned char> *> &test,
-                     bool init,
-                     bool (*f)(bool, bool)
+                     cg_lexing_rule &lr
                      ) {
       bool rval = true;
 
-      while (cg_test<unsigned char>(*it, test, init, f) && it != end)  {
+      while (cg_test(*it, lr) && it != end)  {
          s += *it++;
       }
 
@@ -224,15 +264,15 @@ protected:
 
    // Useful ones using defauls tests
    bool decode_dec(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
-      return decode_while(it, end, s, mTestDecimal, false, *[](bool in, bool r) -> bool { return in || r; });
+      return decode_while(it, end, s, mIsDecimalRule);
    }
 
    bool decode_oct(std::string::iterator &it, const std::string::iterator &end,  std::string &s) {
-      return decode_while(it, end, s, mTestOctal, false, *[](bool in, bool r) -> bool { return in || r; });
+      return decode_while(it, end, s, mIsOctalRule);
    }
 
    bool decode_hex(std::string::iterator &it, const std::string::iterator &end,  std::string &s) {
-      return decode_while(it, end, s, mTestHex, false, *[](bool in, bool r) -> bool { return in || r; });
+      return decode_while(it, end, s, mIsHexRule);;
    }
 
    // Default useful caracter ranges
@@ -269,6 +309,9 @@ protected:
 
    cg_lexing_rule mIsStringLiteralRule;
 
+
+   // User defined rules
+   // -----------------------------------------------------------------------------
    std::map<std::string, std::list<cg_test_base<unsigned char> *>> mUserDefinedTestMap;
 };
 
