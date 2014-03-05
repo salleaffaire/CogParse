@@ -68,7 +68,36 @@ public:
                           mTagEnd(CG_DEFAULT_TAG_END),
                           mAttributeDelimiter(CG_DEFAULT_ATTRIBUTE_DELIMITER),
                           mKeyValueSeperator(CG_DEFAULT_KEY_VALUE_SEPERATOR),
-                          mState(CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME) {}
+                          mState(CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME),
+
+                          mIsEqual('='),
+                          mIsMinus('-'),
+                          mIsPlus('+'),
+                          mIsSlash('/') {
+
+      // Special attribute test list to account for the fact that our embedded base64
+      // is not withing double quote
+      mIsAttributeValue.push_back(&mIsInUppercaseRange);
+      mIsAttributeValue.push_back(&mIsInLowercaseRange);
+      mIsAttributeValue.push_back(&mIsInDecimalRange);
+      mIsAttributeValue.push_back(&mIsEqual);
+      mIsAttributeValue.push_back(&mIsSlash);
+      mIsAttributeValue.push_back(&mIsPlus);
+
+      mIsAttributeValueRule.mFn   = cg_lexing_rule::mOr;
+      mIsAttributeValueRule.mInit = false;
+      mIsAttributeValueRule.mTestList   = &mIsAttributeValue;
+
+      // HLS TAG Name is alphanumeric values + '-' (Also inclusing lower case eventhough I shouldn't)
+      mIsTagName.push_back(&mIsInUppercaseRange);
+      mIsTagName.push_back(&mIsInLowercaseRange);
+      mIsTagName.push_back(&mIsInDecimalRange);
+      mIsTagName.push_back(&mIsMinus);
+
+      mIsTagNameRule.mFn   = cg_lexing_rule::mOr;
+      mIsTagNameRule.mInit = false;
+      mIsTagNameRule.mTestList   = &mIsTagName;
+   }
 
    virtual ~cg_tag_line_parser() {}
 
@@ -98,7 +127,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME:
-               if (cg_test(*it, mIsAlphaNumRule) || (*it == '-')) {
+               if (test(*it, mIsAlphaNumRule) || (*it == '-')) {
                   rval.mTagName += *it;
                }
                else if (*it == mTagEnd) {
@@ -114,7 +143,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY:
-               if (cg_test(*it, mIsAlphaNumRule) || (*it == '-')) {
+               if (test(*it, mIsAlphaNumRule) || (*it == '-')) {
                   currentAttributeKey += *it;
                }
                else if (*it == '"') {
@@ -140,8 +169,8 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE:
-               if (cg_test(*it, mIsAlphaNumRule)
-                     || (*it == '-') || (*it == '=') || (*it == '+')) {
+               if (test(*it, mIsAlphaNumRule)
+                     || (*it == '/') || (*it == '=') || (*it == '+')) {
                   currentAttributeValue += *it;
                }
                else if (*it == '"') {
@@ -190,7 +219,16 @@ private:
 
    cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE mState;
 
+   cg_test_equal<unsigned char> mIsEqual;
+   cg_test_equal<unsigned char> mIsMinus;
+   cg_test_equal<unsigned char> mIsPlus;
+   cg_test_equal<unsigned char> mIsSlash;
 
+   std::list<cg_test_base<unsigned char> *> mIsAttributeValue;
+   std::list<cg_test_base<unsigned char> *> mIsTagName;
+
+   cg_lexing_rule                           mIsAttributeValueRule;
+   cg_lexing_rule                           mIsTagNameRule;
 };
 
 

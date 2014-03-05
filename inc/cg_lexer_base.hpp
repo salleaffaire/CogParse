@@ -69,7 +69,7 @@ private:
 // Lexing rule class
 // -------------------------------------------------------------------
 
-class cg_lexing_rule {
+class cg_lexing_rule : cg_test_base<unsigned char> {
 public:
    typedef bool (*lexing_rule_fn)(bool, bool);
 
@@ -79,9 +79,22 @@ public:
    cg_lexing_rule() {}
    ~cg_lexing_rule() {}
 
-   lexing_rule_fn                            mFn;
-   bool                                      mInit;
-   std::list<cg_test_base<unsigned char> *>  mTestList;
+   lexing_rule_fn                             mFn;
+   bool                                       mInit;
+   std::list<cg_test_base<unsigned char> *>  *mTestList;
+
+   bool test(unsigned char c)
+   {
+      bool rval = mInit;
+
+      for (typename std::list<cg_test_base<unsigned char> *>::iterator it = mTestList->begin();
+           (it != mTestList->end());
+           ++it) {
+         rval = mFn((*it)->test(c), rval);
+      }
+
+      return rval;
+   }
 };
 
 
@@ -95,26 +108,6 @@ cg_lexing_rule::lexing_rule_fn cg_lexing_rule::mAnd = *[](bool in, bool r) -> bo
 
 // -------------------------------------------------------------------
 
-
-
-template <class T>
-bool cg_test(T c, std::list<cg_test_base<T> *> &t_l, bool init, bool (*f)(bool, bool)) {
-   bool rval = init;
-
-   for (typename std::list<cg_test_base<T> *>::iterator it = t_l.begin();
-        (it != t_l.end());
-        ++it) {
-      rval = f((*it)->test(c), rval);
-   }
-
-   return rval;
-}
-
-bool cg_test(unsigned char c, cg_lexing_rule &lr) {
-   return cg_test<unsigned char>(c, lr.mTestList, lr.mInit, lr.mFn);
-}
-
-
 class cg_lexer_base {
 public:
    cg_lexer_base() :
@@ -126,7 +119,7 @@ public:
       mIsInDecimalRange(0x30, 0x39),     // Decimal digits     [0-9]
       mIsInOctalRange(0x30, 0x37),       // Octal digits       [0-7]
       mIsInHexupRange(0x41, 0x46),       // Upper case alpha hex digits [A-F]
-      mIsInHexlowRange(0x61, 0x66),       // Lower case alpha hex digits [a-f]
+      mIsInHexlowRange(0x61, 0x66),      // Lower case alpha hex digits [a-f]
       mIsNotDoubleQuote('"')
    {
 
@@ -157,48 +150,52 @@ public:
       // Default rules
       // -------------------------------------------------------------------
       // -------------------------------------------------------------------
-      mIsDecimalRule.mFn       = cg_lexing_rule::mOr;
-      mIsDecimalRule.mInit     = false;
-      mIsDecimalRule.mTestList = mTestDecimal;
-
-      mIsOctalRule.mFn         = cg_lexing_rule::mOr;
-      mIsOctalRule.mInit       = false;
-      mIsOctalRule.mTestList   = mTestOctal;
-
-      mIsHexRule.mFn           = cg_lexing_rule::mOr;
-      mIsHexRule.mInit         = false;
-      mIsHexRule.mTestList     = mTestHex;
-
-      mIsLetterRule.mFn        = cg_lexing_rule::mOr;
-      mIsLetterRule.mInit      = false;
-      mIsLetterRule.mTestList  = mTestLetter;
-
-      mIsAlphaNumRule.mFn        = cg_lexing_rule::mOr;
-      mIsAlphaNumRule.mInit      = false;
-      mIsAlphaNumRule.mTestList  = mTestAlphaNum;
-
-      mIsStringLiteralRule.mFn        = cg_lexing_rule::mAnd;
-      mIsStringLiteralRule.mInit      = true;
-      mIsStringLiteralRule.mTestList  = mTestStringLiteral;
+      create_rule("Decimal",       mIsDecimalRule,       &mTestDecimal,       false, cg_lexing_rule::mOr);
+      create_rule("Octal",         mIsOctalRule,         &mTestOctal,         false, cg_lexing_rule::mOr);
+      create_rule("Hex",           mIsHexRule,           &mTestHex,           false, cg_lexing_rule::mOr);
+      create_rule("Letter",        mIsLetterRule,        &mTestLetter,        false, cg_lexing_rule::mOr);
+      create_rule("AlphaNum",      mIsAlphaNumRule,      &mTestAlphaNum,      false, cg_lexing_rule::mOr);
+      create_rule("StringLiteral", mIsStringLiteralRule, &mTestStringLiteral, true,  cg_lexing_rule::mAnd);
 
    }
    virtual ~cg_lexer_base() {}
 
-   void push_rule(std::string rule_name, std::list<cg_test_base<unsigned char> *> rule) {
-      mUserDefinedTestMap[rule_name] = rule;
+   cg_lexing_rule &get_rule(std::string name)
+   {
+      return mRuleMap[name];
+   }
+
+
+private:
+   void create_rule(std::string name,
+                    cg_lexing_rule &lr,
+                    std::list<cg_test_base<unsigned char> *> *t_l,
+                    bool init,
+                    cg_lexing_rule::lexing_rule_fn lrf)
+   {
+      lr.mFn          = lrf;
+      lr.mInit        = init;
+      lr.mTestList    = t_l;
+      mRuleMap[name]  = lr;
    }
 
 protected:
 
+   bool test(unsigned char c, cg_lexing_rule &lr)
+   {
+      return lr.test(c);
+   }
+
    // --------------------------------------------------------
-   bool decode_string_literal(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
+   bool decode_string_literal(std::string::iterator &it, const std::string::iterator &end, std::string &s)
+   {
       bool rval = true;
 
       if (*it == '"') {
          // Swallow the opening double-quote, update the iterator
          s += *it++;
 
-         while (cg_test(*it, mIsStringLiteralRule)) {
+         while (test(*it, mIsStringLiteralRule)) {
             s += *it++;
          }
 
@@ -217,7 +214,8 @@ protected:
    // 0X17 or 0x17  -> Hex
    // 027           -> Octal
    // --------------------------------------------------------
-   bool decode_number(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
+   bool decode_number(std::string::iterator &it, const std::string::iterator &end, std::string &s)
+   {
       bool rval = true;
 
       // Octal or Hex
@@ -252,10 +250,11 @@ protected:
                      const std::string::iterator &end,
                      std::string &s,
                      cg_lexing_rule &lr
-                     ) {
+                     )
+   {
       bool rval = true;
 
-      while (cg_test(*it, lr) && it != end)  {
+      while (test(*it, lr) && it != end)  {
          s += *it++;
       }
 
@@ -263,15 +262,18 @@ protected:
    }
 
    // Useful ones using defauls tests
-   bool decode_dec(std::string::iterator &it, const std::string::iterator &end, std::string &s) {
+   bool decode_dec(std::string::iterator &it, const std::string::iterator &end, std::string &s)
+   {
       return decode_while(it, end, s, mIsDecimalRule);
    }
 
-   bool decode_oct(std::string::iterator &it, const std::string::iterator &end,  std::string &s) {
+   bool decode_oct(std::string::iterator &it, const std::string::iterator &end,  std::string &s)
+   {
       return decode_while(it, end, s, mIsOctalRule);
    }
 
-   bool decode_hex(std::string::iterator &it, const std::string::iterator &end,  std::string &s) {
+   bool decode_hex(std::string::iterator &it, const std::string::iterator &end,  std::string &s)
+   {
       return decode_while(it, end, s, mIsHexRule);;
    }
 
@@ -310,9 +312,9 @@ protected:
    cg_lexing_rule mIsStringLiteralRule;
 
 
-   // User defined rules
+   // Default and User defined rules map
    // -----------------------------------------------------------------------------
-   std::map<std::string, std::list<cg_test_base<unsigned char> *>> mUserDefinedTestMap;
+   std::map<std::string, cg_lexing_rule> mRuleMap;
 };
 
 
