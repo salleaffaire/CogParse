@@ -11,6 +11,9 @@
 #include "cg_textfile_parser.hpp"
 #include "cg_tag_parser.hpp"
 
+#include "cg_state_machine.hpp"
+#include "cg_state_tests.hpp"
+
 // #include "cg_basic_element.hpp"
 // #include "cg_file.hpp"
 
@@ -71,9 +74,19 @@ main(int argc, char *argv[]) {
    std::cout << std::endl;
 #endif
 
+   // Test state machine
+#if 1
+   cg_state_machine sm(3);
+   sm.set_state(new cg_st_tts_start, 0);
+   sm.set_state(new cg_st_tts_query, 1);
+   sm.set_state(new cg_st_tts_end,   2);
+
+   sm.run();
+#endif
+
 
    // Text file parser test
-#if 1
+#if 0
    //cg_text_file       _textFile("stream4.m3u8");
    cg_text_file       _textFile("BigBuckBunny_HLSProtected.m3u8");
    cg_tag_line_parser _tagLineParser;
