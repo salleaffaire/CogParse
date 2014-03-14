@@ -82,13 +82,18 @@ main(int argc, char *argv[]) {
       std::string s;
       while (_textFile.next_line(s)) {
 
-         std::cout << "****************************************************" << std::endl;
+         std::cout << "********************************************************************************" << std::endl;
          std::cout << s << std::endl << std::endl;
 
          cg_tag_line tag_line = _tagLineParser.lex(s);
 
          if (tag_line.isOK()) {
+            std::cout << "Parsed SUCCESS !! " << std::endl;
+            std::cout << "--------------------------------" << std::endl;
             std::cout << tag_line;
+         }
+         else {
+            std::cout << "ERROR !! " << std::endl;
          }
       }
    }

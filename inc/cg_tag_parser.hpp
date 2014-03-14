@@ -23,6 +23,25 @@
 #define CG_DEFAULT_KEY_VALUE_SEPERATOR '='
 // ----------------------------------------------
 
+// Automaton - Not HLS :(
+// ----------------------------------------------
+// a := false
+// b := true
+//
+// TAG_START
+// @tag
+// [TAG_END, a:=true]
+// while (b=true) {
+//   if (a=true) {
+//     @attribute_key
+//     KEY_VALUE_SEPERATOR
+//     @attribute_value or @stringlitteral
+//   }
+//   [ATTRIBUTE_DELIMITER,b=true?b=false]
+// }
+//
+
+
 class cg_tag_line_parser;
 
 class cg_tag_line {
@@ -75,28 +94,25 @@ public:
                           mIsPlus('+'),
                           mIsSlash('/') {
 
+
       // Special attribute test list to account for the fact that our embedded base64
       // is not withing double quote
-      mIsAttributeValue.push_back(&mIsInUppercaseRange);
-      mIsAttributeValue.push_back(&mIsInLowercaseRange);
-      mIsAttributeValue.push_back(&mIsInDecimalRange);
-      mIsAttributeValue.push_back(&mIsEqual);
-      mIsAttributeValue.push_back(&mIsSlash);
-      mIsAttributeValue.push_back(&mIsPlus);
-
-      mIsAttributeValueRule.mFn   = cg_lexing_rule::mOr;
-      mIsAttributeValueRule.mInit = false;
-      mIsAttributeValueRule.mTestList   = &mIsAttributeValue;
+      mTestAttributeValue.push_back(&mIsInUppercaseRange);
+      mTestAttributeValue.push_back(&mIsInLowercaseRange);
+      mTestAttributeValue.push_back(&mIsInDecimalRange);
+      mTestAttributeValue.push_back(&mIsEqual);
+      mTestAttributeValue.push_back(&mIsSlash);
+      mTestAttributeValue.push_back(&mIsPlus);
 
       // HLS TAG Name is alphanumeric values + '-' (Also inclusing lower case eventhough I shouldn't)
-      mIsTagName.push_back(&mIsInUppercaseRange);
-      mIsTagName.push_back(&mIsInLowercaseRange);
-      mIsTagName.push_back(&mIsInDecimalRange);
-      mIsTagName.push_back(&mIsMinus);
+      mTestTagName.push_back(&mIsInUppercaseRange);
+      mTestTagName.push_back(&mIsInLowercaseRange);
+      mTestTagName.push_back(&mIsInDecimalRange);
+      mTestTagName.push_back(&mIsMinus);
 
-      mIsTagNameRule.mFn   = cg_lexing_rule::mOr;
-      mIsTagNameRule.mInit = false;
-      mIsTagNameRule.mTestList   = &mIsTagName;
+      //
+      create_rule("tag",            mIsTagNameRule,        &mTestTagName,        false, lr_or);
+      create_rule("attributevalue", mIsAttributeValueRule, &mTestAttributeValue, false, lr_or);
    }
 
    virtual ~cg_tag_line_parser() {}
@@ -127,13 +143,14 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_TAG_NAME:
-               if (test(*it, mIsAlphaNumRule) || (*it == '-')) {
+               if (test(*it, mIsTagNameRule)) {
                   rval.mTagName += *it;
                }
                else if (*it == mTagEnd) {
                   currentAttributeKey.clear();
                   mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY;
                }
+               // Error -
                else {
                   mErrorMessage += "Invalid caracter : ";
                   mErrorMessage += *it;
@@ -143,23 +160,14 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY:
-               if (test(*it, mIsAlphaNumRule) || (*it == '-')) {
+               if (test(*it, mIsTagNameRule)) {
                   currentAttributeKey += *it;
                }
-               else if (*it == '"') {
-                  decode_string_literal(it, end, currentAttributeKey);
-               }
-               // Found a key-value separator -> start decoding the value
                else if (*it == mKeyValueSeperator) {
                   currentAttributeValue.clear();
                   mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE;
                }
-               // Found an attribute delimiter - then I guess the key is a tag value !!!
-               // I hope we're done here
-               else if (*it == mAttributeDelimiter) {
-                  //rval.mAttributes[currentAttributeKey] = "";
-                  //currentAttributeKey.clear();
-               }
+               // Error -
                else {
                   mErrorMessage += "Invalid caracter : ";
                   mErrorMessage += *it;
@@ -169,8 +177,7 @@ public:
                }
                break;
             case cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_VALUE:
-               if (test(*it, mIsAlphaNumRule)
-                     || (*it == '/') || (*it == '=') || (*it == '+')) {
+               if (test(*it, mIsAttributeValueRule)) {
                   currentAttributeValue += *it;
                }
                else if (*it == '"') {
@@ -181,6 +188,7 @@ public:
                   currentAttributeKey.clear();
                   mState = cg_tag_line_parser::CG_TAG_LINE_PARSE_STATE_DECODING_ATTRIBUTE_KEY;
                }
+               // Error -
                else {
                   mErrorMessage += "Invalid caracter : ";
                   mErrorMessage += *it;
@@ -224,11 +232,11 @@ private:
    cg_test_equal<unsigned char> mIsPlus;
    cg_test_equal<unsigned char> mIsSlash;
 
-   std::list<cg_test_base<unsigned char> *> mIsAttributeValue;
-   std::list<cg_test_base<unsigned char> *> mIsTagName;
+   std::list<cg_test_base<unsigned char> *> mTestAttributeValue;
+   std::list<cg_test_base<unsigned char> *> mTestTagName;
 
-   cg_lexing_rule                           mIsAttributeValueRule;
-   cg_lexing_rule                           mIsTagNameRule;
+   cg_lexing_rule<unsigned char>  mIsAttributeValueRule;
+   cg_lexing_rule<unsigned char>  mIsTagNameRule;
 };
 
 

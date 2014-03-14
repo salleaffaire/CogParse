@@ -13,7 +13,7 @@
 #include <list>
 #include <regex>
 
-#include "cg_char_tests.hpp"
+// #include "cg_char_tests.hpp"
 
 // -------------------------------------------------------------------
 // Test classes
@@ -68,26 +68,20 @@ private:
 // -------------------------------------------------------------------
 // Lexing rule class
 // -------------------------------------------------------------------
+typedef bool (*lexing_rule_fn)(bool, bool);
 
-class cg_lexing_rule : cg_test_base<unsigned char> {
+template <class T>
+class cg_lexing_rule : cg_test_base<T> {
 public:
-   typedef bool (*lexing_rule_fn)(bool, bool);
-
-   static lexing_rule_fn        mOr;
-   static lexing_rule_fn        mAnd;
 
    cg_lexing_rule() {}
    ~cg_lexing_rule() {}
 
-   lexing_rule_fn                             mFn;
-   bool                                       mInit;
-   std::list<cg_test_base<unsigned char> *>  *mTestList;
-
-   bool test(unsigned char c)
+   bool test(T c)
    {
       bool rval = mInit;
 
-      for (typename std::list<cg_test_base<unsigned char> *>::iterator it = mTestList->begin();
+      for (typename std::list<cg_test_base<T> *>::iterator it = mTestList->begin();
            (it != mTestList->end());
            ++it) {
          rval = mFn((*it)->test(c), rval);
@@ -95,16 +89,25 @@ public:
 
       return rval;
    }
+
+   void init(std::list<cg_test_base<unsigned char> *> *t_l,
+             bool init,
+             lexing_rule_fn lrf)
+   {
+      mFn       = lrf;
+      mInit     = init;
+      mTestList = t_l;
+   }
+
+private:
+   lexing_rule_fn                 mFn;
+   bool                           mInit;
+   std::list<cg_test_base<T> *>  *mTestList;
 };
 
+extern lexing_rule_fn lr_and;
+extern lexing_rule_fn lr_or;
 
-cg_lexing_rule::lexing_rule_fn cg_lexing_rule::mOr = *[](bool in, bool r) -> bool {
-   return in || r;
-};
-
-cg_lexing_rule::lexing_rule_fn cg_lexing_rule::mAnd = *[](bool in, bool r) -> bool {
-   return in && r;
-};
 
 // -------------------------------------------------------------------
 
@@ -150,38 +153,34 @@ public:
       // Default rules
       // -------------------------------------------------------------------
       // -------------------------------------------------------------------
-      create_rule("Decimal",       mIsDecimalRule,       &mTestDecimal,       false, cg_lexing_rule::mOr);
-      create_rule("Octal",         mIsOctalRule,         &mTestOctal,         false, cg_lexing_rule::mOr);
-      create_rule("Hex",           mIsHexRule,           &mTestHex,           false, cg_lexing_rule::mOr);
-      create_rule("Letter",        mIsLetterRule,        &mTestLetter,        false, cg_lexing_rule::mOr);
-      create_rule("AlphaNum",      mIsAlphaNumRule,      &mTestAlphaNum,      false, cg_lexing_rule::mOr);
-      create_rule("StringLiteral", mIsStringLiteralRule, &mTestStringLiteral, true,  cg_lexing_rule::mAnd);
+      create_rule("decimal",       mIsDecimalRule,       &mTestDecimal,       false, lr_or);
+      create_rule("octal",         mIsOctalRule,         &mTestOctal,         false, lr_or);
+      create_rule("hex",           mIsHexRule,           &mTestHex,           false, lr_or);
+      create_rule("letter",        mIsLetterRule,        &mTestLetter,        false, lr_or);
+      create_rule("alphanum",      mIsAlphaNumRule,      &mTestAlphaNum,      false, lr_or);
+      create_rule("stringliteral", mIsStringLiteralRule, &mTestStringLiteral, true,  lr_and);
 
    }
    virtual ~cg_lexer_base() {}
 
-   cg_lexing_rule &get_rule(std::string name)
+   cg_lexing_rule<unsigned char> &get_rule(std::string name)
    {
       return mRuleMap[name];
    }
 
-
-private:
-   void create_rule(std::string name,
-                    cg_lexing_rule &lr,
-                    std::list<cg_test_base<unsigned char> *> *t_l,
-                    bool init,
-                    cg_lexing_rule::lexing_rule_fn lrf)
-   {
-      lr.mFn          = lrf;
-      lr.mInit        = init;
-      lr.mTestList    = t_l;
-      mRuleMap[name]  = lr;
-   }
-
 protected:
 
-   bool test(unsigned char c, cg_lexing_rule &lr)
+   void create_rule(std::string name,
+                    cg_lexing_rule<unsigned char>  &lr,
+                    std::list<cg_test_base<unsigned char> *> *t_l,
+                    bool init,
+                    lexing_rule_fn lrf)
+   {
+      lr.init(t_l, init, lrf);
+   }
+
+
+   bool test(unsigned char c, cg_lexing_rule<unsigned char>  &lr)
    {
       return lr.test(c);
    }
@@ -249,7 +248,7 @@ protected:
    bool decode_while(std::string::iterator &it,
                      const std::string::iterator &end,
                      std::string &s,
-                     cg_lexing_rule &lr
+                     cg_lexing_rule<unsigned char> &lr
                      )
    {
       bool rval = true;
@@ -302,19 +301,19 @@ protected:
 
    // Default rules
    // ----------------------------------------------------------------------------
-   cg_lexing_rule mIsLetterRule;
-   cg_lexing_rule mIsDecimalRule;
+   cg_lexing_rule<unsigned char> mIsLetterRule;
+   cg_lexing_rule<unsigned char>  mIsDecimalRule;
 
-   cg_lexing_rule mIsOctalRule;
-   cg_lexing_rule mIsHexRule;
-   cg_lexing_rule mIsAlphaNumRule;
+   cg_lexing_rule<unsigned char>  mIsOctalRule;
+   cg_lexing_rule<unsigned char>  mIsHexRule;
+   cg_lexing_rule<unsigned char>  mIsAlphaNumRule;
 
-   cg_lexing_rule mIsStringLiteralRule;
+   cg_lexing_rule<unsigned char>  mIsStringLiteralRule;
 
 
    // Default and User defined rules map
    // -----------------------------------------------------------------------------
-   std::map<std::string, cg_lexing_rule> mRuleMap;
+   std::map<std::string, cg_lexing_rule<unsigned char>> mRuleMap;
 };
 
 
